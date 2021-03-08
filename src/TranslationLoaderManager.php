@@ -2,8 +2,12 @@
 
 namespace Spatie\TranslationLoader;
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Translation\FileLoader;
 use Spatie\TranslationLoader\TranslationLoaders\TranslationLoader;
+use Illuminate\Database\Eloquent\Model;
+use Exception;
 
 class TranslationLoaderManager extends FileLoader
 {
@@ -19,6 +23,10 @@ class TranslationLoaderManager extends FileLoader
     public function load($locale, $group, $namespace = null): array
     {
         $fileTranslations = parent::load($locale, $group, $namespace);
+
+        if(!$this->hasValidDbRequirements()){
+            return $fileTranslations;
+        }
 
         if (! is_null($namespace) && $namespace !== '*') {
             return $fileTranslations;
@@ -42,5 +50,29 @@ class TranslationLoaderManager extends FileLoader
                 return $translationLoader->loadTranslations($locale, $group, $namespace);
             })
             ->toArray();
+    }
+
+    /**
+     * Confirms that migration has been run and 
+     * current context has a valid DB connection.
+     */
+    protected function hasValidDbRequirements() {
+        $model = config('translation-loader.model');
+        $model = new $model;
+        if(!$model instanceof Model){
+            return false;
+        }
+
+        try {
+            DB::connection()->getPdo();
+        } catch (Exception $e) {
+            return false;
+        }
+        
+        if( !Schema::hasTable($model->getTable()) ){
+            return false;
+        }
+
+        return true;
     }
 }
